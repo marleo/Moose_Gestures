@@ -66,11 +66,10 @@ public class Actioner {
     private static final int NONE = 0;
     private static final int SWIPE = 1;
     private int mode = NONE;
-    private float startX;
-    private float startY;
-    private float stopX;
-    private float stopY;
-    private static final int SWIPE_THRESHOLD = Config.SWIPE_THRESHOLD;
+    private float finger1StartX;
+    private float finger2StartX;
+    private float finger1StopX;
+    private float finger2StopX;
 
     //Tap
     private int leftPointerID = INVALID_POINTER_ID; // Id of the left finger
@@ -175,43 +174,51 @@ public class Actioner {
      * @param mid Unique id for the event
      */
     public void scroll(MotionEvent event, int mid) {
-        switch(event.getAction() & MotionEvent.ACTION_MASK) {
-            case MotionEvent.ACTION_POINTER_DOWN: {
-                mode = SWIPE;
-                startY = event.getY();
-                startX = event.getX();
-                break;
-            }
-            case MotionEvent.ACTION_POINTER_UP: {
-                mode = NONE;
-                if(Math.abs(startY - stopY) > SWIPE_THRESHOLD) {
-                    Memo memo;
-                    if(startY > stopY) {    //swipe up
-                        memo = new Memo(STRINGS.SCROLL, "swipeUp", 100, 100);
-                    } else {     //swipe down
-                        memo = new Memo(STRINGS.SCROLL, "swipeDown", 0, 0);
+        Log.d("SWIPE", "Pointer Count: " + event.getPointerCount());
+        int fingerCount = event.getPointerCount();
+        if(fingerCount == 2) {
+            switch (event.getAction() & MotionEvent.ACTION_MASK) {
+                case ACTION_POINTER_DOWN:
+                    mode = SWIPE;
+                    finger1StartX = event.getX(0);
+                    finger2StartX = event.getX(1);
+                    break;
+
+                case ACTION_MOVE:
+                    if(mode == SWIPE && finger1StartX != 0 && finger2StartX != 0) {
+                        finger1StopX = event.getX(0);
+                        finger2StopX = event.getX(1);
                     }
-                    if(Config.MONITOR_JUMP_MODE.equals("SWIPE"))
-                        Networker.get().sendMemo(memo);
-                } else if(Math.abs(startX - stopX) > SWIPE_THRESHOLD) {
-                    Memo memo;
-                    if(startX > stopX) {     //swipe left
-                        memo = new Memo(STRINGS.SCROLL, "swipeLeft", 100, 0);
-                    } else {    //swipe right
-                        memo = new Memo(STRINGS.SCROLL, "swipeRight", 0, 100);
+                    break;
+
+                case ACTION_POINTER_UP:
+                    mode = NONE;
+                    float finger1Diff = finger1StartX - finger1StopX;
+                    float finger2Diff = finger2StartX - finger2StopX;
+
+                    if(Math.abs(finger1Diff) > Config.SWIPE_THRESHOLD
+                            && Math.abs(finger2Diff) > Config.SWIPE_THRESHOLD) {
+                        Memo memo = null;
+                        if(finger1StartX > finger1StopX && finger2StartX > finger2StopX) { //Left Swipe
+                            memo = new Memo(STRINGS.SCROLL, "swipeLeft", 100, 0);
+                        } else if(finger1StartX < finger1StopX && finger2StartX < finger2StopX) { //Right Swipe
+                            Log.d("SWIPE", "F1X: " + finger1StartX + " F2X: " + finger2StartX + " || F1X: " + finger1StopX + " F2X: " + finger2StopX);
+                            memo = new Memo(STRINGS.SCROLL, "swipeRight", 0, 100);
+                        }
+                        if(Config.MONITOR_JUMP_MODE.equals("SWIPE") && memo != null) {
+                            Networker.get().sendMemo(memo);
+                        }
                     }
-                    if(Config.MONITOR_JUMP_MODE.equals("SWIPE"))
-                        Networker.get().sendMemo(memo);
-                }
+                    this.mode = NONE;
+                    break;
             }
-            case MotionEvent.ACTION_MOVE: {
-                if(mode == SWIPE) {
-                    stopY = event.getY(0);
-                    stopX = event.getX(0);
-                }
-                break;
-            }
+        } else {
+            finger1StartX = 0;
+            finger2StartX = 0;
+            finger1StopX = 0;
+            finger2StopX = 0;
         }
+        fingerCount = 0;
     }
 
     public void tapLClick(MotionEvent me, int meId) {
